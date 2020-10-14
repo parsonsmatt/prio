@@ -51,11 +51,11 @@ instance (Exception a, Exception b) => Exception (Or a b) where
 
 type family Throws e es :: Constraint where
   Throws e '[] = e ~ NoExceptions
-  Throws e '[x] = (x :< e, Exception e)
+  Throws e '[x] = (x :< e)
   Throws e (x ': xs) = (x :< e, Throws e xs)
 
-class (Subtype big lil) => lil :< big
-instance (Subtype big lil) => lil :< big
+class (Subtype big lil, Exception big) => lil :< big
+instance (Subtype big lil, Exception big) => lil :< big
 
 class Subtype large single where
   project :: single -> large

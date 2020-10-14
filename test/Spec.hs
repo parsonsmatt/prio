@@ -76,7 +76,7 @@ main = hspec do
 
       describe "multiple errors" do
         let
-          prog :: (Foo :< err, Bar :< err, Exception err) => PRIO err r ()
+          prog :: (Foo :< err, Bar :< err) => PRIO err r ()
           prog = do
             throw Foo
             throw Bar
@@ -103,7 +103,7 @@ main = hspec do
 
     describe "catch" do
       let
-        throwFooAndBar :: Checked '[Foo, Bar] r ()
+        throwFooAndBar :: _ => PRIO err r ()
         throwFooAndBar = do
           throw Foo
           throw Bar

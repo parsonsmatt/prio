@@ -42,6 +42,7 @@ default-extensions:
   - KindSignatures
   - TypeFamilies
   - RankNTypes
+  - PartialTypeSignatures
 
 library:
   source-dirs: src

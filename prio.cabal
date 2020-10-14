@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6bcae19ad4c61911f7b0ac92c34549cab112d36380b263ffedd951a032f682eb
+-- hash: 99d6ac17ff2d47dc76e8c6a7d730ff9ed7dae16343887ab86643b520fd33a379
 
 name:           prio
 version:        0.1.0.0
@@ -32,7 +32,7 @@ library
       Paths_prio
   hs-source-dirs:
       src
-  default-extensions: DerivingStrategies GeneralizedNewtypeDeriving TypeOperators LambdaCase DeriveAnyClass BlockArguments DataKinds FlexibleInstances FlexibleContexts TypeSynonymInstances MultiParamTypeClasses UndecidableInstances ScopedTypeVariables TypeApplications KindSignatures TypeFamilies RankNTypes
+  default-extensions: DerivingStrategies GeneralizedNewtypeDeriving TypeOperators LambdaCase DeriveAnyClass BlockArguments DataKinds FlexibleInstances FlexibleContexts TypeSynonymInstances MultiParamTypeClasses UndecidableInstances ScopedTypeVariables TypeApplications KindSignatures TypeFamilies RankNTypes PartialTypeSignatures
   build-depends:
       base >=4.7 && <5
     , mtl
@@ -46,7 +46,7 @@ test-suite prio-test
       Paths_prio
   hs-source-dirs:
       test
-  default-extensions: DerivingStrategies GeneralizedNewtypeDeriving TypeOperators LambdaCase DeriveAnyClass BlockArguments DataKinds FlexibleInstances FlexibleContexts TypeSynonymInstances MultiParamTypeClasses UndecidableInstances ScopedTypeVariables TypeApplications KindSignatures TypeFamilies RankNTypes
+  default-extensions: DerivingStrategies GeneralizedNewtypeDeriving TypeOperators LambdaCase DeriveAnyClass BlockArguments DataKinds FlexibleInstances FlexibleContexts TypeSynonymInstances MultiParamTypeClasses UndecidableInstances ScopedTypeVariables TypeApplications KindSignatures TypeFamilies RankNTypes PartialTypeSignatures
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
