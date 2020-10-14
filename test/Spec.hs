@@ -56,45 +56,45 @@ main = hspec do
     describe "error accumulation" do
       describe "no errors thrown" do
         it "allows a safe run" do
-          runPRIOSafe () (pure ())
+          runCheckedSafe (pure ())
             `shouldReturn`
               ()
 
       describe "single error" do
         let
-          prog :: (Exception e, Foo :< e) => PRIO e r ()
+          prog :: (Exception e, Foo :< e) => Checked e ()
           prog = do
             throw Foo
         it "can return just a single error in the type, no Or needed" do
-          runPRIO () prog
+          runChecked prog
             `shouldReturn`
               Left Foo
         it "doesn't allow a safe run" do
           -- Uncommenting this line causes a type error.
-          -- runPRIOSafe () prog
+          -- runCheckedSafe prog
           True `shouldBe` True
 
       describe "multiple errors" do
         let
-          prog :: (Foo :< err, Bar :< err) => PRIO err r ()
+          prog :: (Foo :< err, Bar :< err) => Checked err ()
           prog = do
             throw Foo
             throw Bar
             pure ()
         it "accumulates transparently" do
           let
-            fooFirst = prog :: PRIO (Foo || Bar) () ()
-            barFirst = prog :: PRIO (Bar || Foo) () ()
-          runPRIO () fooFirst
+            fooFirst = prog :: Checked (Foo || Bar) ()
+            barFirst = prog :: Checked (Bar || Foo) ()
+          runChecked fooFirst
             `shouldReturn`
               Left (This Foo)
-          runPRIO () barFirst
+          runChecked barFirst
             `shouldReturn`
               Left (That Foo)
 
       describe "type inference is p good" do
         let
-          prog :: Checked '[Foo, Bar] r Int
+          prog :: (Throws e '[Foo, Bar]) => Checked e Int
           prog = do
             throw Foo
             throw Bar
@@ -103,12 +103,12 @@ main = hspec do
 
     describe "catch" do
       let
-        throwFooAndBar :: _ => PRIO err r ()
+        throwFooAndBar :: _ => Checked err ()
         throwFooAndBar = do
           throw Foo
           throw Bar
           pure ()
-        catchesFoo :: Checked '[Bar] r Int
+        catchesFoo :: Throwing '[Bar] IO Int
         catchesFoo = do
           res <- try throwFooAndBar
           case res of
@@ -118,16 +118,14 @@ main = hspec do
               pure 5
 
       it "works" do
-        runPRIO () catchesFoo
+        runChecked catchesFoo
           `shouldReturn`
             (Right 1 :: Either Bar Int)
 
       it "can discharge all errors" do
-        runPRIOSafe
-          ()
+        runCheckedSafe
           (throwFooAndBar `catch` (\Foo -> pure ()) `catch` \Bar -> pure ())
           `shouldReturn`
             ()
-
 
 compiles = True `shouldBe` True

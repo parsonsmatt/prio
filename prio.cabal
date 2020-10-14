@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 99d6ac17ff2d47dc76e8c6a7d730ff9ed7dae16343887ab86643b520fd33a379
+-- hash: 9adf770a698b9cb042d81cc96621cf5345e9292f27840ff39da39dcf9ffd3ffc
 
 name:           prio
 version:        0.1.0.0
@@ -36,6 +36,7 @@ library
   build-depends:
       base >=4.7 && <5
     , mtl
+    , safe-exceptions
     , transformers
   default-language: Haskell2010
 
@@ -53,5 +54,6 @@ test-suite prio-test
     , hspec
     , mtl
     , prio
+    , safe-exceptions
     , transformers
   default-language: Haskell2010

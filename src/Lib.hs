@@ -2,23 +2,31 @@ module Lib where
 
 import Data.Kind
 import Control.Applicative
-import Control.Exception (SomeException(..), Exception(..), throwIO)
-import qualified Control.Exception as Exception
+import Control.Exception.Safe (SomeException(..), MonadThrow(..), throwM, Exception(..), throwIO, MonadCatch(..))
+import qualified Control.Exception.Safe as Exception
 import Control.Monad.Reader
 import Data.Void
 import Data.Typeable
 import GHC.TypeLits
 
-newtype PRIO e r a = PRIO (ReaderT r IO a)
+newtype CheckedT e m a = CheckedT { unsafeRunCheckedT :: m a }
   deriving newtype (Functor, Applicative, Monad, MonadReader r)
 
-type Checked (e :: [Type]) r a = forall err. Throws err e => PRIO err r a
+type Checked e = CheckedT e IO
 
-runPRIO :: Exception e => r -> PRIO e r a -> IO (Either e a)
-runPRIO r (PRIO k) = Exception.try (runReaderT k r)
+type Throwing es m a = forall err. Throws err es => CheckedT err m a
 
-runPRIOSafe :: r -> PRIO NoExceptions r a -> IO a
-runPRIOSafe r (PRIO k) = runReaderT k r
+runChecked :: Exception e => Checked e a -> IO (Either e a)
+runChecked = runCheckedT
+
+runCheckedT :: (Exception e, MonadCatch m) => CheckedT e m a -> m (Either e a)
+runCheckedT action = Exception.try (unsafeRunCheckedT action)
+
+runCheckedSafe :: Checked NoExceptions a -> IO a
+runCheckedSafe = runCheckedTSafe
+
+runCheckedTSafe :: CheckedT NoExceptions m a -> m a
+runCheckedTSafe = unsafeRunCheckedT
 
 data Or a b = This a | That b
   deriving stock (Eq, Show)
@@ -75,21 +83,21 @@ instance {-# overlappable #-} (TypeError (SubtypeErrorMsg a b)) => Subtype a b w
 type SubtypeErrorMsg a b =
   'Text "The type " ':<>: 'ShowType b ':<>: 'Text " is not a subtype of " ':<>: 'ShowType a
 
-throw :: forall e err r a. (Subtype err e, Exception e, Exception err) => e -> PRIO err r a
-throw e = PRIO . liftIO . throwIO $ (project e :: err)
+throw :: forall e err m a. (Subtype err e, Exception e, Exception err, MonadThrow m) => e -> CheckedT err m a
+throw e = CheckedT . throwM $ (project e :: err)
 
-try :: forall e err r a. (Exception e, Exception err) => PRIO (e || err) r a -> PRIO err r (Either e a)
-try (PRIO action) = do
-  eresult <- PRIO $ ReaderT $ \r -> Exception.try (runReaderT action r)
+try :: forall e err m a. (Exception e, Exception err, MonadCatch m) => CheckedT (e || err) m a -> CheckedT err m (Either e a)
+try (CheckedT action) = do
+  eresult <- CheckedT $ Exception.try action
   case eresult :: Either (e || err) a of
     Left (This e) ->
       pure (Left e)
     Left (That err) ->
-      PRIO . liftIO . throwIO $ (err :: err)
+      CheckedT . throwM $ (err :: err)
     Right a ->
       pure (Right a)
 
-catch :: forall e err r a. (Exception e, Exception err) => PRIO (e || err) r a -> (e -> PRIO err r a) -> PRIO err r a
+catch :: forall e err m a. (Exception e, Exception err, MonadCatch m) => CheckedT (e || err) m a -> (e -> CheckedT err m a) -> CheckedT err m a
 catch action withException = do
   ea <- try action
   case ea of
@@ -98,9 +106,10 @@ catch action withException = do
 
 infixl 6 `catch`
 
-runIO :: IO a -> PRIO SomeException r a
-runIO = PRIO . liftIO
+runIO :: MonadIO m => IO a -> CheckedT SomeException m a
+runIO = runIOUnsafe
 
-runIOUnsafe :: IO a -> PRIO e r a
-runIOUnsafe = PRIO . liftIO
+runIOUnsafe :: MonadIO m => IO a -> CheckedT e m a
+runIOUnsafe = CheckedT . liftIO
+
 
