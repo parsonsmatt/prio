@@ -1,6 +1,10 @@
 import Lib
 import Test.Hspec
-import Control.Exception (Exception(..))
+import Control.Exception (SomeException(..), Exception(..))
+
+instance Eq SomeException where
+  SomeException e0 == SomeException e1 =
+    show e0 == show e1
 
 data Foo = Foo
   deriving (Eq, Show, Exception)
@@ -52,7 +56,7 @@ main = hspec do
         `shouldBe`
           Just (This Foo :: Foo || Bar || Foo)
 
-  describe "Prio" do
+  describe "CheckedT" do
     describe "error accumulation" do
       describe "no errors thrown" do
         it "allows a safe run" do
@@ -103,12 +107,12 @@ main = hspec do
 
     describe "catch" do
       let
-        throwFooAndBar :: _ => Checked err ()
+        throwFooAndBar :: Throwing (Foo, Bar) IO ()
         throwFooAndBar = do
           throw Foo
           throw Bar
           pure ()
-        catchesFoo :: Throwing '[Bar] IO Int
+        catchesFoo :: Throwing Bar IO Int
         catchesFoo = do
           res <- try throwFooAndBar
           case res of
@@ -128,4 +132,61 @@ main = hspec do
           `shouldReturn`
             ()
 
+    describe "generalize" do
+      it "can stil catch" do
+        let
+          prg :: Checked Foo ()
+          prg = throw Foo
+
+          prg' :: Foo :< err => Checked err ()
+          prg' = generalize prg
+        runChecked prg'
+          `shouldReturn`
+            Left Foo
+
+    describe "liftIO" do
+      let io :: IO ()
+          io = pure ()
+      it "adds SomeException to the error constraint" do
+        runChecked (liftIO io)
+          `shouldReturn`
+            Right @SomeException ()
+
+    describe "specialize" do
+      let io :: IO ()
+          io = pure ()
+      it "adds an additional type to the constraint" do
+        let
+          embedded :: Throwing SomeException IO ()
+          embedded = liftIO io
+
+          withHttp :: Throwing (SomeException, HttpException) IO ()
+          withHttp = embedded
+
+        runChecked withHttp
+          `shouldReturn`
+            Right @(SomeException || HttpException) ()
+
+
 compiles = True `shouldBe` True
+
+someHttpCall :: IO ()
+someHttpCall = pure ()
+
+data HttpException = HttpException
+  deriving (Eq, Show, Exception)
+data IOException = IOException
+  deriving (Eq, Show, Exception)
+
+someHttpCall' :: Throwing SomeException IO ()
+someHttpCall' = liftIO someHttpCall
+
+someHttpCall'' :: Throwing (HttpException, IOException, SomeException) IO ()
+someHttpCall'' = liftIOWith @(HttpException, IOException) someHttpCall
+
+someHttpCall'0 :: Throwing (HttpException, IOException, SomeException) IO ()
+someHttpCall'0 = someHttpCall'
+
+someHttpCall''' :: Throwing (HttpException, IOException) IO ()
+someHttpCall''' = dismissUnsafe someHttpCall'
+

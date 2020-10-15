@@ -24,6 +24,7 @@ dependencies:
 - mtl
 - transformers
 - safe-exceptions
+- unliftio-core
 
 default-extensions:
   - DerivingStrategies
@@ -44,6 +45,10 @@ default-extensions:
   - TypeFamilies
   - RankNTypes
   - PartialTypeSignatures
+  - PolyKinds
+  - AllowAmbiguousTypes
+  - StandaloneDeriving
+  - QuantifiedConstraints
 
 library:
   source-dirs: src
