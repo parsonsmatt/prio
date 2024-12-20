@@ -115,7 +115,7 @@ import GHC.Stack
 import GHC.TypeLits
 import qualified Control.Exception.Safe as Exception
 
-class (Monad m) => MonadThrows err m | m -> err where
+class (Monad m, Exception err) => MonadThrows err m | m -> err where
     throwAllChecked :: (HasCallStack) => err -> m a
 
 throwChecked :: (MonadThrows err m, ExceptionSubtype err e) => e -> m a
@@ -191,15 +191,15 @@ tryOneChecked action = do
                     throwAllChecked err
 
 wat
-    :: (MonadCatch m)
+    :: (MonadCatch m, MonadThrows rest m)
     => m (Either FooExn Int)
-wat = runCheckedTSafe $ tryOneChecked @FooExn (throwChecked FooExn)
+wat = tryOneChecked (throwChecked FooExn)
 
 wat2
-    :: forall rest exn m a. (Exception exn, MonadThrows exn m, MonadCatch m)
+    :: forall rest exn m a. (MonadThrows exn m, MonadCatch m)
     => m (Either FooExn a)
 wat2 = tryOneChecked @FooExn (throwChecked FooExn)
---
+
 concretized3
     :: forall e err m a.
     ( MonadCatch m
