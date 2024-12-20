@@ -25,6 +25,7 @@ dependencies:
 - transformers
 - safe-exceptions
 - unliftio-core
+- exceptions
 
 default-extensions:
   - DerivingStrategies
