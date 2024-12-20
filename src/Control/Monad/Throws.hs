@@ -115,16 +115,16 @@ import GHC.Stack
 import GHC.TypeLits
 import qualified Control.Exception.Safe as Exception
 
-class (Monad m, ExceptionSubtype err e) => MonadThrows e err m | m -> err where
-    throwChecked :: (HasCallStack) => e -> m a
+class (Monad m) => MonadThrows err m | m -> err where
+    throwAllChecked :: (HasCallStack) => err -> m a
+
+throwChecked :: (MonadThrows err m, ExceptionSubtype err e) => e -> m a
+throwChecked = throwAllChecked . inject
 
 instance
-    (ExceptionSubtype err e
---     , Exception e
---     , Exception err
-    , MonadThrow m
-    ) => MonadThrows e err (CheckedT err m) where
-    throwChecked = throw
+    ( Exception err, MonadThrow m
+    ) => MonadThrows err (CheckedT err m) where
+    throwAllChecked = throwUnchecked
 
 -- instance
 --     (TypeError ('Text "no"), Exception e, err ~ NoExceptions) =>
@@ -137,7 +137,7 @@ data FooExn = FooExn
 data BarExn = BarExn
     deriving (Show, Exception)
 
-blah :: (MonadThrows FooExn err m, MonadThrows BarExn err m) => Int -> m a
+blah :: (Throws err (FooExn, BarExn), MonadThrows err m) => Int -> m a
     -- _ => Int -> _
 blah i
     | i < 0 =
@@ -171,9 +171,9 @@ tryAllChecked (CheckedT action) = do
     Exception.try action
 
 tryOneChecked
-    ::  forall e rest exn m a.
+    ::  forall e rest m a.
     ( MonadCatch m
-    , MonadThrows rest exn m
+    , MonadThrows rest m
     , Exception (e || rest)
     ) =>
     CheckedT (e || rest) m a ->
@@ -188,7 +188,7 @@ tryOneChecked action = do
                 This e ->
                     pure (Left e)
                 That err ->
-                    throwChecked err
+                    throwAllChecked err
 
 wat
     :: (MonadCatch m)
@@ -196,16 +196,15 @@ wat
 wat = runCheckedTSafe $ tryOneChecked @FooExn (throwChecked FooExn)
 
 wat2
-    :: forall rest exn m a. (MonadThrows rest exn m, MonadCatch m)
+    :: forall rest exn m a. (Exception exn, MonadThrows exn m, MonadCatch m)
     => m (Either FooExn a)
-wat2 = tryOneChecked @FooExn @rest (throwChecked FooExn)
+wat2 = tryOneChecked @FooExn (throwChecked FooExn)
 --
--- concretized3
---     :: forall e err m a.
---     ( MonadCatch m
---     , MonadThrows e err m
---     -- , -- ExceptionSubtype err BarExn
---     , _ -- ExceptionSubtype err BarXn
---     )
---     => m _
--- concretized3 = tryOneChecked @FooExn $ blah 2
+concretized3
+    :: forall e err m a.
+    ( MonadCatch m
+    , MonadThrows err m
+    , ExceptionSubtype err BarExn
+    )
+    => m (Either FooExn a)
+concretized3 = tryOneChecked @FooExn $ blah 2
