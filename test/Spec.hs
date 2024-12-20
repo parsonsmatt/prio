@@ -15,6 +15,9 @@ data Bar = Bar
 data Quux = Quux
   deriving (Eq, Show, Exception)
 
+-- t :: Int
+-- t = project (This (3 :: Int))
+
 main :: IO ()
 main = hspec do
   describe "instance Exception Or" do

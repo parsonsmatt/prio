@@ -17,9 +17,13 @@ import Control.Monad.IO.Unlift
 import Data.Coerce
 
 newtype CheckedT (e :: Type) (m :: Type -> Type) (a :: Type)
-  = CheckedT { unsafeRunCheckedT :: m a }
+    = CheckedT { unsafeRunCheckedT :: m a }
   deriving
-    newtype (Functor, Applicative, Monad, MonadReader r, MonadError e, MonadState s)
+    newtype
+        ( Functor, Applicative, Monad, MonadReader r, MonadError e, MonadState s
+        , MonadThrow
+        , MonadCatch
+        )
 
 instance (MonadIO m, SomeException :< err) => MonadIO (CheckedT err m) where
   liftIO = CheckedT . liftIO
@@ -77,7 +81,7 @@ instance (Exception a, Exception b) => Exception (Or a b) where
 type family Throws (e :: Type) (es :: k) :: Constraint where
   Throws e '[] = e ~ NoExceptions
   Throws e () = e ~ NoExceptions
-  Throws e '[x] = (x :< e)
+  Throws e '[x] = (x :< e, Exception e)
   Throws e (x ': xs) = (x :< e, Throws e xs)
   Throws e (a, b) = (a :< e, b :< e)
   Throws e (a, b, c) = (a :< e, b :< e, c :< e)
@@ -90,29 +94,41 @@ type family Throws (e :: Type) (es :: k) :: Constraint where
   Throws e (a, b, c, d, g, h, k, j, i, l) = Throws e '[a, b, c, d, g, h, k, j, i, l]
   Throws e (a :: Type) = a :< e
 
-class (Subtype big lil, Exception big) => lil :< big
-instance (Subtype big lil, Exception big) => lil :< big
+class (ExceptionSubtype big lil, Exception big) => lil :< big
+instance (ExceptionSubtype big lil, Exception big) => lil :< big
 
-class Subtype large single where
-  project :: single -> large
+class (Exception large, Exception single) => ExceptionSubtype large single where
+  inject :: single -> large
+  project :: large -> Maybe single
 
-instance {-# Overlappable #-} Subtype a a where
-  project = id
+instance {-# overlappable #-} (Exception a, a ~ b) => ExceptionSubtype a b where
+  inject = id
+  project = Just
 
-instance {-# Overlapping #-} Subtype (a || b) a where
-  project = This
+-- thanks to https://h2.jaguarpaw.co.uk/posts/bluefin-plucking-constraints/
+-- for the tip on incoherent instances here
+instance {-# Incoherent #-} (Exception a, Exception b) => ExceptionSubtype (a || b) a where
+  inject = This
+  project aorb =
+      case aorb of
+          This a -> Just a
+          That b -> Nothing
 
-instance {-# Overlappable #-} (Subtype b c) => Subtype (a || b) c where
-  project = That . project
+instance  (Exception a, Exception b, Exception c, ExceptionSubtype b c) => ExceptionSubtype (a || b) c where
+  inject = That . inject
+  project aorb =
+      case aorb of
+          This a -> Nothing
+          That b -> project b
 
-instance {-# overlappable #-} (TypeError (SubtypeErrorMsg a b)) => Subtype a b where
-  project = undefined
+-- instance {-# incoherent #-} (TypeError (SubtypeErrorMsg a b), Exception a, Exception b) => ExceptionSubtype a b where
+--   inject = undefined
 
 type SubtypeErrorMsg a b =
   'Text "The type " ':<>: 'ShowType b ':<>: 'Text " is not a subtype of " ':<>: 'ShowType a
 
-throw :: forall e err m a. (Subtype err e, Exception e, Exception err, MonadThrow m) => e -> CheckedT err m a
-throw e = throwUnchecked (project e :: err)
+throw :: forall e err m a. (ExceptionSubtype err e, Exception e, Exception err, MonadThrow m) => e -> CheckedT err m a
+throw e = throwUnchecked (inject e :: err)
 
 throwUnchecked :: (MonadThrow m, Exception e) => e -> CheckedT err m a
 throwUnchecked = CheckedT . throwM
@@ -120,7 +136,11 @@ throwUnchecked = CheckedT . throwM
 tryAll :: (Exception err, MonadCatch m) => CheckedT err m a -> CheckedT NoExceptions m (Either err a)
 tryAll (CheckedT action) = CheckedT (Exception.try action)
 
-try :: forall e err m a. (Exception e, Exception err, MonadCatch m) => CheckedT (e || err) m a -> CheckedT err m (Either e a)
+try
+    :: forall e err m a
+     . (Exception e, Exception err, MonadCatch m)
+    => CheckedT (e || err) m a
+    -> CheckedT err m (Either e a)
 try (CheckedT action) = do
   eresult <- CheckedT $ Exception.try action
   case eresult :: Either (e || err) a of
